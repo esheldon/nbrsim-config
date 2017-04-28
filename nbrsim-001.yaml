@@ -1,3 +1,6 @@
+some_variables:
+    - &run "001"
+    - &NBRSIM_DIR $os.environ['NBRSIM_DIR']
 
 modules:
     - galsim_extra  # For PostOp stamp type
@@ -209,12 +212,18 @@ output:
     badpix:
         hdu: 1
 
-    dir: output
+    dir:
+      type: FormattedStr
+      format: "%s/%s/output"
+      items:
+        - *NBRSIM_DIR
+        - *run
+
     file_name:
         type: FormattedStr
-        format: "%s-%03d.fits"
+        format: "nbrsim-%s-%06d.fits"
         items:
-        - "@root"
+        - *run
         - { type: Sequence, nitems: '@output.nfiles' }
 
     truth:
