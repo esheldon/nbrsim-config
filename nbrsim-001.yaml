@@ -214,14 +214,15 @@ output:
 
     dir:
       type: FormattedStr
-      format: "%s/%s/output"
+      format: "%s/%s/output/%06d"
       items:
         - *NBRSIM_DIR
         - *run
+        - { type: Sequence, nitems: '@output.nfiles' }
 
     file_name:
         type: FormattedStr
-        format: "nbrsim-%s-%06d.fits"
+        format: "nbrsim-%s-%06d-image.fits"
         items:
         - *run
         - { type: Sequence, nitems: '@output.nfiles' }
@@ -229,7 +230,7 @@ output:
     truth:
         file_name :
             type: FormattedStr
-            format: "%s_truth-%03d.fits"
+            format: "%s-%06d-truth.fits"
             items:
             - "@root"
             - '@output.file_name.items.1'
