@@ -25,8 +25,14 @@ star:
         # looks like the slope for the bright end stars in DES r band
         function: x**-1.5
 
-        x_min: 1000.0
-        x_max: 1.0e+06
+        # this produces semi-realistic distribution
+        # x_min: 1000.0
+
+        # limited to bright end so we don't have to worry about s/g separation
+        #x_min: 1.0e+05
+        #x_max: 1.0e+06
+        x_min: 5.0e+04
+        x_max: 5.0e+05
 
 #
 # bulge+disk+knots of starformation
@@ -98,8 +104,9 @@ bright_gal:
 
     shear:
         type: G1G2
-        g1: 0.01
+        g1: 0.02
         g2: 0.00
+
 
 #
 # the same population as the bright sample, but scaled
@@ -111,10 +118,10 @@ faint_gal:
     scale_flux: 0.1
     dilate: 0.5
 
-    shear:
-        type: G1G2
-        g1: 0.02
-        g2: 0.00
+#    shear:
+#        type: G1G2
+#        g1: 0.02
+#        g2: 0.00
 
 #
 # larger and proportionally brighter
@@ -123,13 +130,14 @@ faint_gal:
 
 nearby_gal:
     template: :bright_gal
-    scale_flux: 25
+    #scale_flux: 25
+    scale_flux: 50
     dilate: 5.0
 
-    shear:
-        type: G1G2
-        g1: 0.001
-        g2: 0.00
+#    shear:
+#        type: G1G2
+#        g1: 0.001
+#        g2: 0.00
 
 
 stamp:
@@ -146,16 +154,20 @@ stamp:
         # @current_obj_type.  The actual constructed object is similarly
         # available as @current_obj
 
-        #bright_gal: 0.5
-        #bright_gal: 0.5
-        star:       0.10
-        bright_gal: 0.1390
-        faint_gal:  0.76
+        #star:       0.10
+        #bright_gal: 0.1390
+        #faint_gal:  0.76
+
+        # since they are all bright, use fewer
+        star: 0.01
+        bright_gal: 0.153
+        faint_gal:  0.836
 
         nearby_gal:   0.001
 
     # Especially for faint sample, photon shooting will be significantly faster
     draw_method: "$'phot' if (@current_obj).flux < 1.e5 else 'fft'"
+    #draw_method: "phot"
 
 image:
     type: Scattered
@@ -163,7 +175,8 @@ image:
     #xsize: 2048
     #ysize: 4096
 
-    nobjects: 13800
+    #nobjects: 27600
+    nobjects: 40000
     xsize: 4096
     ysize: 4096
 
@@ -200,11 +213,8 @@ input:
 
 output:
     type: Fits
-    nfiles: 100
-    #nfiles: 12
-    #nfiles: 1000
+    nfiles: 10000
 
-    #nproc: -1
     nproc: 1
 
     weight:
