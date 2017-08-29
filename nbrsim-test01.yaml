@@ -1,0 +1,275 @@
+# same as nbrsim-003, more stats
+# two source planes
+
+some_variables:
+    - &run "003"
+    - &NBRSIM_DIR $os.environ['NBRSIM_DIR']
+
+modules:
+    - galsim_extra  # For PostOp stamp type
+
+psf:
+    type: Moffat
+    beta: 2.5
+    ellip:
+        type: G1G2
+        g1: 0.
+        g2: 0.03
+    fwhm: 0.9
+
+
+star:
+    type: Gaussian
+    sigma: 1.e-4
+
+    flux:
+        type: RandomDistribution
+
+        # looks like the slope for the bright end stars in DES r band
+        function: x**-1.5
+
+        # this produces semi-realistic distribution
+        # x_min: 1000.0
+
+        # limited to bright end so we don't have to worry about s/g separation
+        #x_min: 1.0e+05
+        #x_max: 1.0e+06
+        x_min: 5.0e+04
+        x_max: 5.0e+05
+
+#
+# bulge+disk+knots of starformation
+#
+# this follows the model used in Sheldon & Huff 2017
+#
+# the knots are just point sources, distributed according to
+# a random walk
+#
+# All components have the same r50
+#
+# The bulge and disk have independent ellipticities
+# The bulge has g1,g2 scatter of 0.1 (0.2 in eta)
+# The disk  has g1,g2 scatter of 0.2 (0.4 in eta)
+#
+# The knots have the same ellip as the disk
+#
+# The bulge fraction is random, drawn from [0,1]
+# The fraction of the light in the disk is further
+# divided between the smooth component and the knots,
+# also drawn as a fraction between [0,1]
+#
+# The scale radius and flux are drawn jointly from the
+# COSMOS 25.2 limited sample
+#
+
+bright_gal:
+
+    # bright galaxies
+    type: Sum
+    items:
+        -
+            type: DeVaucouleurs
+            half_light_radius: 
+                type: CosmosR50
+            flux: { type: Random, min: 0, max: 1 }
+
+            # sigma=0.2 in eta is ~0.1 in g
+            ellip:
+                type: Eta1Eta2
+                eta1: { type: RandomGaussian, sigma: 0.4 }
+                eta2: { type: RandomGaussian, sigma: 0.4 }
+
+        -
+            type: Exponential
+            half_light_radius: '@bright_gal.items.0.half_light_radius'
+            flux: 
+                type: Eval
+                str: 'smooth_frac * (1. - @bright_gal.items.0.flux)'
+                fsmooth_frac: { type: Random, min: 0, max: 1 }
+
+            # sigma=0.4 in eta is ~0.2 in g
+            ellip:
+                type: Eta1Eta2
+                eta1: { type: RandomGaussian, sigma: 0.4 }
+                eta2: { type: RandomGaussian, sigma: 0.4 }
+
+        -
+            type: RandomWalk
+            npoints: 100
+            half_light_radius: '@bright_gal.items.0.half_light_radius'
+            # (relative) flux is 1 - the sum of the other two.
+            ellip: '@bright_gal.items.1.ellip'
+
+    flux:
+        type: Eval
+        str: "250.0 * cosmos_flux"
+        fcosmos_flux: { type: CosmosFlux }
+
+    shear:
+        type: G1G2
+        g1: 0.00
+        g2:
+            type: List
+            items: [0.01, 0.02]
+            index: { type: Random, min: 0, max: 1 }
+
+        # could also do this if want both g1 and g2 to change
+        #    type: List
+        #    items:
+        #        - { type: G1G2, g1: 0.01, g2: 0.02 }
+        #        - { type: G1G2, g1: 0.04, g2: 0.01 }
+        #    index: { type: Random, min: 0, max: 1 }
+#
+# the same population as the bright sample, but scaled
+# to lower flux and size.  This isn't ideal, we end up
+# with extra galaxies where the two populations overlap
+#
+faint_gal:
+    template: :bright_gal
+    scale_flux: 0.1
+    dilate: 0.5
+
+#    shear:
+#        type: G1G2
+#        g1: 0.02
+#        g2: 0.00
+
+#
+# larger and proportionally brighter
+# we will make this rare as well
+#
+
+nearby_gal:
+    template: :bright_gal
+    #scale_flux: 25
+    scale_flux: 50
+    dilate: 5.0
+
+#    shear:
+#        type: G1G2
+#        g1: 0.001
+#        g2: 0.00
+
+
+stamp:
+
+    # A custom stamp type in galsim_extra that lets you have multiple kinds of
+    # objects, each with their own base-level field.
+
+    type: MixedScene
+    objects:
+
+        # These give the probability of picking each kind of object.  The
+        # choice of which one is picked for a given object is written to the
+        # base dict as base['current_obj_type'] and is thus available as
+        # @current_obj_type.  The actual constructed object is similarly
+        # available as @current_obj
+
+        #star:       0.10
+        #bright_gal: 0.1390
+        #faint_gal:  0.76
+
+        # since they are all bright, use fewer
+        star: 0.01
+        bright_gal: 0.153
+        faint_gal:  0.836
+
+        nearby_gal:   0.001
+
+    # Especially for faint sample, photon shooting will be significantly faster
+    draw_method: "$'phot' if (@current_obj).flux < 1.e5 else 'fft'"
+    #draw_method: "phot"
+
+image:
+    type: Scattered
+
+    nobjects: 40000
+    xsize: 4096
+    ysize: 4096
+
+    #sky_level: 3330.0    # ADU / arcsec^2. 231 in ADU/pixel
+
+    noise:
+        type: Poisson
+        sky_level: 10000.0
+        #type: CCD        # CCD noise includes both read noise and poisson noise
+        #gain: 4.0        # e- / ADU
+        #read_noise: 6.8  # Variance in ADU^2 (10.427 sigma in electrons)
+
+
+    random_seed: 8731
+
+    wcs:
+        type : Tan
+        dudx : 0.263
+        dudy : 0.000
+        dvdx : 0.000
+        dvdy : 0.263
+        origin : center
+        ra : 19.3 hours  # Something random.  This is the ra/dec of the center of the image.
+        dec : -33.1 degrees
+
+input:
+    # Use analytic galaxies with size and flux parameters that match the distribution seen
+    # in the COSMOS galaxies.
+    cosmos_sampler:
+        min_r50: 0.15
+        max_r50: 1.0
+        min_flux: 2.5
+        max_flux: 100
+
+output:
+    type: Fits
+    nfiles: 10000
+
+    nproc: 1
+
+    weight:
+        hdu: 2
+    badpix:
+        hdu: 1
+
+    dir:
+      type: FormattedStr
+      format: "%s/%s/output/%06d"
+      items:
+        - *NBRSIM_DIR
+        - *run
+        - { type: Sequence, nitems: '@output.nfiles' }
+
+    file_name:
+        type: FormattedStr
+        format: "nbrsim-%s-%06d-image.fits"
+        items:
+        - *run
+        - { type: Sequence, nitems: '@output.nfiles' }
+
+    truth:
+        file_name :
+            type: FormattedStr
+            format: "nbrsim-%s-%06d-truth.fits"
+            items:
+            - *run
+            - { type: Sequence, nitems: '@output.nfiles' }
+
+
+        columns:
+            num: obj_num
+            x: $image_pos.x
+            y: $image_pos.y
+
+
+            obj_type: "$0 if @current_obj_type == 'star' else 1 if @current_obj_type == 'bright_gal' else 2"
+
+            #hlr: "$np.float64(0.0) if @current_obj_type == 'star' else ( (@faint_gal.items.0.half_light_radius) * (@faint_gal.dilate) if @current_obj_type == 'faint_gal' else (@bright_gal.items.0.half_light_radius) )"
+            hlr: "$0.0 if @current_obj_type == 'star' else ( (@faint_gal.items.0.half_light_radius) * (@faint_gal.dilate) if @current_obj_type == 'faint_gal' else (@bright_gal.items.0.half_light_radius) )"
+            flux: "$(@current_obj).flux"
+
+            shear1: "$0.0 if @current_obj_type == 'star' else ( @faint_gal.shear.g1 if @current_obj_type == 'faint_gal' else @bright_gal.shear.g1)"
+            shear2: "$0.0 if @current_obj_type == 'star' else ( @faint_gal.shear.g2 if @current_obj_type == 'faint_gal' else @bright_gal.shear.g2)"
+
+            shear_index: "$-1 if @current_obj_type == 'star' else ( @faint_gal.shear.g2.index if @current_obj_type == 'faint_gal' else @bright_gal.shear.g2.index)"
+
+            psf_fwhm: psf.fwhm
+            psf_g1: psf.ellip.g1
+            psf_g2: psf.ellip.g2
